@@ -2,8 +2,11 @@
 
 An Android application built with Kotlin and Jetpack Compose that places an interactive morning routine diagram directly over the system lockscreen.
 
-**Landing Page:** [del0x3.github.io/morning-routine-site](https://del0x3.github.io/morning-routine-site/)  
-**Source Repository:** [github.com/del0x3/morning-plan](https://github.com/del0x3/morning-plan)
+### Official Links
+
+- **Live Website & Interactive Simulator:** [del0x3.github.io/morning-routine-site](https://del0x3.github.io/morning-routine-site/)
+- **Website Repository:** [github.com/del0x3/morning-routine-site](https://github.com/del0x3/morning-routine-site)
+- **GitHub Releases:** [github.com/del0x3/morning-plan/releases](https://github.com/del0x3/morning-plan/releases)
 
 The layout is inspired by hand-drawn sketches from Excalidraw, and the original concept board was generated using Gemini.
 
