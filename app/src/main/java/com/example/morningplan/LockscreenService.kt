@@ -54,8 +54,8 @@ class LockscreenService : Service() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("План на утро активен")
-            .setContentText("Экран поверх блокировки включен")
+            .setContentTitle("Morning Routine Active")
+            .setContentText("Lockscreen plan overlay is running")
             .setSmallIcon(android.R.drawable.ic_menu_agenda)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -98,7 +98,7 @@ class LockscreenService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Локскрин служба",
+            "Lockscreen Routine Service",
             NotificationManager.IMPORTANCE_HIGH
         )
         val manager = getSystemService(NotificationManager::class.java)

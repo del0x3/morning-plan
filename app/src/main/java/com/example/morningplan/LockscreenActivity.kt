@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +34,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -49,12 +55,30 @@ class LockscreenActivity : ComponentActivity() {
         @Suppress("DEPRECATION")
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_FULLSCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        insetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         setContent {
             LockscreenContent(onDismiss = { dismissLockscreen() })
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     private fun dismissLockscreen() {
@@ -70,13 +94,19 @@ class LockscreenActivity : ComponentActivity() {
 fun LockscreenContent(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("morning_plan_prefs", Context.MODE_PRIVATE) }
+    val coroutineScope = rememberCoroutineScope()
+
+    var isEnglish by remember { mutableStateOf(prefs.getBoolean("is_english", true)) }
 
     var wakeUpDone by remember { mutableStateOf(prefs.getBoolean("wake_up", false)) }
     var washDone by remember { mutableStateOf(prefs.getBoolean("wash", false)) }
     var waterDone by remember { mutableStateOf(prefs.getBoolean("water", false)) }
     var walkDone by remember { mutableStateOf(prefs.getBoolean("walk", false)) }
 
-    // Палитра по референсу Excalidraw / Gemini
+    // State for holding reset button for 3 seconds
+    var resetHoldSeconds by remember { mutableIntStateOf(0) }
+    var isResetting by remember { mutableStateOf(false) }
+
     val bgWarm = Color(0xFFFBF4E9)
     val boxYellow = Color(0xFFFFE788)
     val boxBlue = Color(0xFFA6D4FF)
@@ -105,25 +135,76 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                     }
                 }
             }
-            .padding(horizontal = 20.dp, vertical = 40.dp)
+            .padding(horizontal = 20.dp, vertical = 44.dp)
     ) {
-        // Кнопка сброса отметок
-        Text(
-            text = "Сброс",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Gray,
+        // Top navigation bar: Language and 3s Hold Reset
+        Row(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .clickable {
-                    wakeUpDone = false
-                    washDone = false
-                    waterDone = false
-                    walkDone = false
-                    prefs.edit().clear().apply()
-                }
-                .padding(8.dp)
-        )
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isEnglish) "EN / ru" else "RU / en",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.Gray,
+                modifier = Modifier
+                    .clickable {
+                        isEnglish = !isEnglish
+                        prefs.edit().putBoolean("is_english", isEnglish).apply()
+                    }
+                    .padding(8.dp)
+            )
+
+            // Hold-to-reset 3-second button
+            val resetText = when {
+                isResetting && resetHoldSeconds > 0 -> if (isEnglish) "Hold (${resetHoldSeconds}s)..." else "Держи (${resetHoldSeconds}с)..."
+                else -> if (isEnglish) "Hold 3s to reset" else "Зажми 3с для сброса"
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isResetting) Color(0x22FF4D4F) else Color.Transparent)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isResetting = true
+                                resetHoldSeconds = 3
+                                var completed = false
+                                val job = coroutineScope.launch {
+                                    for (i in 3 downTo 1) {
+                                        resetHoldSeconds = i
+                                        delay(1000)
+                                    }
+                                    completed = true
+                                    wakeUpDone = false
+                                    washDone = false
+                                    waterDone = false
+                                    walkDone = false
+                                    prefs.edit().remove("wake_up").remove("wash").remove("water").remove("walk").apply()
+                                    isResetting = false
+                                    resetHoldSeconds = 0
+                                }
+                                tryAwaitRelease()
+                                job.cancel()
+                                isResetting = false
+                                resetHoldSeconds = 0
+                            }
+                        )
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = resetText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isResetting) Color(0xFFD32F2F) else Color.Gray
+                )
+            }
+        }
 
         Column(
             modifier = Modifier
@@ -132,25 +213,24 @@ fun LockscreenContent(onDismiss: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Заголовок в стиле рукописного скетча
+            // Main title
             Text(
-                text = "План на утро",
-                fontSize = 40.sp,
+                text = if (isEnglish) "Morning Routine" else "План на утро",
+                fontSize = if (isEnglish) 36.sp else 40.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = FontFamily.SansSerif,
                 color = outlineDark,
-                modifier = Modifier.padding(bottom = 36.dp)
+                modifier = Modifier.padding(bottom = 34.dp)
             )
 
-            // Контейнер диаграммы
+            // Diagram box
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(460.dp)
             ) {
-                // Холст со стрелками
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    // 1. Стрелка Проснуться -> Умыться (вертикально вниз)
+                    // 1. Wake Up -> Wash Up
                     if (wakeBottom != Offset.Zero && washTop != Offset.Zero) {
                         val verticalX = wakeBottom.x
                         drawDiagramArrow(
@@ -160,7 +240,7 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                         )
                     }
 
-                    // 2. Стрелка Умыться -> Попить водички (диагональ)
+                    // 2. Wash Up -> Drink Water
                     if (washRight != Offset.Zero && waterLeft != Offset.Zero) {
                         drawDiagramArrow(
                             start = washRight,
@@ -169,7 +249,7 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                         )
                     }
 
-                    // 3. Стрелка Умыться -> Выйти на улицу
+                    // 3. Wash Up -> Step Outside
                     if (washBottom != Offset.Zero && walkLeftTop != Offset.Zero) {
                         drawDiagramArrow(
                             start = washBottom,
@@ -178,7 +258,7 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                         )
                     }
 
-                    // 4. Стрелка Попить водички -> Выйти на улицу
+                    // 4. Drink Water -> Step Outside
                     if (waterBottom != Offset.Zero && walkRightTop != Offset.Zero) {
                         drawDiagramArrow(
                             start = waterBottom,
@@ -188,37 +268,39 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                     }
                 }
 
-                // 1. Блок: Проснуться
+                // 1. Wake Up
                 DiagramTaskCard(
-                    title = "Проснуться",
+                    title = if (isEnglish) "Wake Up" else "Проснуться",
                     isDone = wakeUpDone,
                     defaultColor = boxYellow,
                     doneColor = doneGreen,
                     outlineColor = outlineDark,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = 16.dp, top = 8.dp)
+                        .padding(start = 18.dp, top = 8.dp)
                         .onGloballyPositioned { coords ->
                             val pos = coords.positionInParent()
                             val size = coords.size
                             wakeBottom = Offset(pos.x + size.width / 2f, pos.y + size.height)
                         },
                     onClick = {
-                        wakeUpDone = !wakeUpDone
-                        prefs.edit().putBoolean("wake_up", wakeUpDone).apply()
+                        if (!wakeUpDone) {
+                            wakeUpDone = true
+                            prefs.edit().putBoolean("wake_up", true).apply()
+                        }
                     }
                 )
 
-                // 2. Блок: Умыться
+                // 2. Wash Up
                 DiagramTaskCard(
-                    title = "Умыться",
+                    title = if (isEnglish) "Wash Up" else "Умыться",
                     isDone = washDone,
                     defaultColor = boxBlue,
                     doneColor = doneGreen,
                     outlineColor = outlineDark,
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = 16.dp, bottom = 40.dp)
+                        .padding(start = 18.dp, bottom = 40.dp)
                         .onGloballyPositioned { coords ->
                             val pos = coords.positionInParent()
                             val size = coords.size
@@ -227,14 +309,16 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                             washBottom = Offset(pos.x + size.width * 0.8f, pos.y + size.height)
                         },
                     onClick = {
-                        washDone = !washDone
-                        prefs.edit().putBoolean("wash", washDone).apply()
+                        if (!washDone) {
+                            washDone = true
+                            prefs.edit().putBoolean("wash", true).apply()
+                        }
                     }
                 )
 
-                // Текст над стрелкой: "опционально"
+                // Optional text
                 Text(
-                    text = "опционально",
+                    text = if (isEnglish) "optional" else "опционально",
                     fontSize = 13.sp,
                     color = arrowColor,
                     fontWeight = FontWeight.SemiBold,
@@ -244,16 +328,16 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                         .rotate(-12f)
                 )
 
-                // 3. Блок: Попить водички
+                // 3. Drink Water
                 DiagramTaskCard(
-                    title = "Попить\nводички",
+                    title = if (isEnglish) "Drink\nWater" else "Попить\nводички",
                     isDone = waterDone,
                     defaultColor = boxBlue,
                     doneColor = doneGreen,
                     outlineColor = outlineDark,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 12.dp, bottom = 60.dp)
+                        .padding(end = 16.dp, bottom = 60.dp)
                         .onGloballyPositioned { coords ->
                             val pos = coords.positionInParent()
                             val size = coords.size
@@ -261,14 +345,16 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                             waterBottom = Offset(pos.x + size.width * 0.35f, pos.y + size.height)
                         },
                     onClick = {
-                        waterDone = !waterDone
-                        prefs.edit().putBoolean("water", waterDone).apply()
+                        if (!waterDone) {
+                            waterDone = true
+                            prefs.edit().putBoolean("water", true).apply()
+                        }
                     }
                 )
 
-                // 4. Блок: Выйти на улицу
+                // 4. Step Outside (clickable and toggles to checkmark)
                 DiagramTaskCard(
-                    title = "Выйти\nна улицу",
+                    title = if (isEnglish) "Step\nOutside" else "Выйти\nна улицу",
                     isDone = walkDone,
                     defaultColor = boxGreen,
                     doneColor = doneGreen,
@@ -283,16 +369,18 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                             walkRightTop = Offset(pos.x + size.width * 0.65f, pos.y)
                         },
                     onClick = {
-                        walkDone = !walkDone
-                        prefs.edit().putBoolean("walk", walkDone).apply()
+                        if (!walkDone) {
+                            walkDone = true
+                            prefs.edit().putBoolean("walk", true).apply()
+                        }
                     }
                 )
             }
         }
 
-        // Подсказка внизу
+        // Bottom hint
         Text(
-            text = "Свайпните вверх для разблокировки",
+            text = if (isEnglish) "Swipe up to unlock" else "Свайпните вверх для разблокировки",
             fontSize = 13.sp,
             color = Color.Gray,
             modifier = Modifier

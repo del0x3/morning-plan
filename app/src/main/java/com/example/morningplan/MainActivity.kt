@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Автоматически запускаем службу при входе
+        // Automatically start background service
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
@@ -87,7 +87,7 @@ fun MainScreen(onStartService: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "План на утро",
+                text = "Morning Routine",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -96,7 +96,7 @@ fun MainScreen(onStartService: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Экран с утренними делами поверх блокировки",
+                text = "Interactive plan & habits right over your lockscreen",
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -114,12 +114,12 @@ fun MainScreen(onStartService: () -> Unit) {
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Требуется разрешение",
+                            text = "Permission Required",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
-                            text = "Чтобы показывать экран при заблокированном телефоне, включите «Поверх других приложений».",
+                            text = "To show the plan over the lockscreen, please enable 'Display over other apps'.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -136,7 +136,7 @@ fun MainScreen(onStartService: () -> Unit) {
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text("Предоставить разрешение")
+                            Text("Grant Permission")
                         }
                     }
                 }
@@ -150,7 +150,7 @@ fun MainScreen(onStartService: () -> Unit) {
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Служба активна (перезапустить)", fontSize = 16.sp)
+                Text("Service Active (Tap to Restart)", fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -167,13 +167,13 @@ fun MainScreen(onStartService: () -> Unit) {
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Открыть экран схемы сейчас", fontSize = 16.sp)
+                Text("Preview Lockscreen Now", fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "Совет для Samsung:\nВ Настройках телефона → Приложения → План на утро → Батарея выберите «Не ограничено».",
+                text = "Samsung One UI Tip:\nGo to Settings → Apps → Morning Routine → Battery → Select 'Unrestricted'.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center
