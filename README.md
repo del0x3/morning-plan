@@ -16,7 +16,7 @@ Official release builds are signed and published through GitHub Actions.
 You can download the latest installable APK from the **[Releases](https://github.com/del0x3/morning-plan/releases)** tab.
 
 Direct link to the latest APK:  
-[app-release.apk (v1.1.0)](https://github.com/del0x3/morning-plan/releases/latest/download/app-release.apk)
+[app-release.apk (v1.1.1)](https://github.com/del0x3/morning-plan/releases/latest/download/app-release.apk)
 
 ---
 
@@ -25,10 +25,6 @@ Direct link to the latest APK:
 | Gemini Reference Board | Clean Lockscreen (English) | Completed Tasks |
 | :---: | :---: | :---: |
 | ![Gemini Reference](assets/reference_gemini.jpg) | ![Fresh Lockscreen](assets/screenshot_fresh.png) | ![Checked Tasks](assets/screenshot_checked.png) |
-
-### Demonstration Video
-A video recording captured on a physical Samsung Galaxy device demonstrating the hold-to-fill interaction and swipe-to-unlock gesture:
-[Watch demo.mp4](assets/demo.mp4)
 
 ---
 
@@ -85,8 +81,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ---
 
-## Roadmap
+## Roadmap & Backlog
 
+- Animated GIF demo recording for README preview.
 - Direct import of board layouts from Excalidraw JSON files and live URLs.
-- Dynamic node and arrow creation directly in the app.
-- Multi-platform expansion: release and native support for all devices, including tablets, desktops (macOS, Windows, Linux), and other mobile ecosystems.
+- Dynamic visual graph editor for in-app routine customization.
+- Cross-platform release supporting all devices (tablets, macOS, Windows, Linux, and other mobile ecosystems).
+- Daily statistics and routine completion streaks.

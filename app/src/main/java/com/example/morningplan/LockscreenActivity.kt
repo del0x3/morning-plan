@@ -169,26 +169,26 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                 val density = LocalDensity.current
 
                 // Card Dimensions
-                val card1Width = 140.dp
-                val card1Height = 72.dp
+                val card1Width = 136.dp
+                val card1Height = 70.dp
 
-                val card2Width = 140.dp
-                val card2Height = 74.dp
+                val card2Width = 136.dp
+                val card2Height = 70.dp
 
-                val card3Width = 125.dp
-                val card3Height = 74.dp
+                val card3Width = 120.dp
+                val card3Height = 70.dp
 
-                val card4Width = 148.dp
-                val card4Height = 76.dp
+                val card4Width = 144.dp
+                val card4Height = 72.dp
 
                 // Exact horizontal positions
-                val leftMargin = 18.dp
+                val leftMargin = 22.dp
                 val card1X = leftMargin
                 val card2X = leftMargin
                 val card1CenterX = card1X + card1Width / 2
                 val card2CenterX = card2X + card2Width / 2 // Identical X center!
 
-                val rightMargin = 18.dp
+                val rightMargin = 22.dp
                 val card3X = totalWidth - rightMargin - card3Width
                 val card3CenterX = card3X + card3Width / 2
 
@@ -198,9 +198,9 @@ fun LockscreenContent(onDismiss: () -> Unit) {
 
                 // Vertical positions
                 val card1Y = 0.dp
-                val card2Y = 140.dp
-                val card3Y = 100.dp // Slightly higher than Card 2, exactly like reference
-                val card4Y = 320.dp
+                val card2Y = 136.dp
+                val card3Y = 114.dp
+                val card4Y = 308.dp
 
                 // Precise Arrow anchors in Dp
                 // 1. Wake Up -> Wash Up (100% straight vertical)
@@ -220,26 +220,26 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                 )
                 val arrow2End = Offset(
                     with(density) { card3X.toPx() },
-                    with(density) { (card3Y + card3Height - 24.dp).toPx() }
+                    with(density) { (card3Y + card3Height - 22.dp).toPx() }
                 )
 
                 // 3. Wash Up -> Step Outside (Left diagonal)
                 val arrow3Start = Offset(
-                    with(density) { (card2X + card2Width - 22.dp).toPx() },
+                    with(density) { (card2CenterX + 32.dp).toPx() },
                     with(density) { (card2Y + card2Height).toPx() }
                 )
                 val arrow3End = Offset(
-                    with(density) { (card4CenterX - 32.dp).toPx() },
+                    with(density) { (card4CenterX - 36.dp).toPx() },
                     with(density) { card4Y.toPx() }
                 )
 
                 // 4. Drink Water -> Step Outside (Right diagonal - 100% symmetric to Left diagonal)
                 val arrow4Start = Offset(
-                    with(density) { (card3X + 22.dp).toPx() },
+                    with(density) { (card3CenterX - 32.dp).toPx() },
                     with(density) { (card3Y + card3Height).toPx() }
                 )
                 val arrow4End = Offset(
-                    with(density) { (card4CenterX + 32.dp).toPx() },
+                    with(density) { (card4CenterX + 36.dp).toPx() },
                     with(density) { card4Y.toPx() }
                 )
 
@@ -250,20 +250,6 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                     drawExcalidrawArrow(start = arrow3Start, end = arrow3End, color = arrowColor)
                     drawExcalidrawArrow(start = arrow4Start, end = arrow4End, color = arrowColor)
                 }
-
-                // "optional" hand-drawn label above Arrow 2
-                val optX = (card2X + card2Width + card3X) / 2 - 34.dp
-                val optY = (card2Y + card3Y) / 2 - 18.dp
-                Text(
-                    text = "optional",
-                    fontSize = 14.sp,
-                    fontFamily = kalamFamily,
-                    color = arrowColor,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .offset(x = optX, y = optY)
-                        .rotate(-15f)
-                )
 
                 // 1. Wake Up Card
                 ExcalidrawCard(
@@ -355,6 +341,20 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                         prefs.edit().remove("walk").apply()
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     }
+                )
+
+                // "optional" hand-drawn label rendered on TOP layer
+                val optX = (card2X + card2Width + card3X) / 2 - 25.dp
+                val optY = (card2Y + card3Y) / 2 - 20.dp
+                Text(
+                    text = "optional",
+                    fontSize = 14.sp,
+                    fontFamily = kalamFamily,
+                    color = arrowColor,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .offset(x = optX, y = optY)
+                        .rotate(-14f)
                 )
             }
         }
