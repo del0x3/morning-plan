@@ -4,12 +4,17 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -21,24 +26,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -93,36 +102,31 @@ class LockscreenActivity : ComponentActivity() {
 @Composable
 fun LockscreenContent(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val prefs = remember { context.getSharedPreferences("morning_plan_prefs", Context.MODE_PRIVATE) }
-    val coroutineScope = rememberCoroutineScope()
-
-    var isEnglish by remember { mutableStateOf(prefs.getBoolean("is_english", true)) }
 
     var wakeUpDone by remember { mutableStateOf(prefs.getBoolean("wake_up", false)) }
     var washDone by remember { mutableStateOf(prefs.getBoolean("wash", false)) }
     var waterDone by remember { mutableStateOf(prefs.getBoolean("water", false)) }
     var walkDone by remember { mutableStateOf(prefs.getBoolean("walk", false)) }
 
-    // State for holding reset button for 3 seconds
-    var resetHoldSeconds by remember { mutableIntStateOf(0) }
-    var isResetting by remember { mutableStateOf(false) }
+    // Authentic Excalidraw font
+    val kalamFamily = remember {
+        try {
+            FontFamily(Font(R.font.kalam, FontWeight.Bold))
+        } catch (e: Exception) {
+            FontFamily.SansSerif
+        }
+    }
 
-    val bgWarm = Color(0xFFFBF4E9)
-    val boxYellow = Color(0xFFFFE788)
-    val boxBlue = Color(0xFFA6D4FF)
-    val boxGreen = Color(0xFFB4EFA6)
-    val doneGreen = Color(0xFF8CE67E)
-    val outlineDark = Color(0xFF1E1B18)
-    val arrowColor = Color(0xFF5A544D)
-
-    var wakeBottom by remember { mutableStateOf(Offset.Zero) }
-    var washTop by remember { mutableStateOf(Offset.Zero) }
-    var washRight by remember { mutableStateOf(Offset.Zero) }
-    var washBottom by remember { mutableStateOf(Offset.Zero) }
-    var waterLeft by remember { mutableStateOf(Offset.Zero) }
-    var waterBottom by remember { mutableStateOf(Offset.Zero) }
-    var walkLeftTop by remember { mutableStateOf(Offset.Zero) }
-    var walkRightTop by remember { mutableStateOf(Offset.Zero) }
+    // Palette exactly matching the reference Excalidraw artwork
+    val bgWarm = Color(0xFFFAF3E8) // Soft warm sketchbook background
+    val boxYellow = Color(0xFFFDE483) // Hand-drawn pastel yellow
+    val boxBlue = Color(0xFFA5D4FE)   // Hand-drawn sky blue
+    val boxGreen = Color(0xFFB1F19F)  // Hand-drawn pastel green
+    val doneGreen = Color(0xFF8BE77E) // Vibrant completed green
+    val inkDark = Color(0xFF231F20)   // Rich Excalidraw ink stroke
+    val arrowColor = Color(0xFF6B655E) // Graphite/ink arrow color
 
     Box(
         modifier = Modifier
@@ -135,344 +139,449 @@ fun LockscreenContent(onDismiss: () -> Unit) {
                     }
                 }
             }
-            .padding(horizontal = 20.dp, vertical = 44.dp)
+            .systemBarsPadding()
     ) {
-        // Top navigation bar: Language and 3s Hold Reset
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (isEnglish) "EN / ru" else "RU / en",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Gray,
-                modifier = Modifier
-                    .clickable {
-                        isEnglish = !isEnglish
-                        prefs.edit().putBoolean("is_english", isEnglish).apply()
-                    }
-                    .padding(8.dp)
-            )
-
-            // Hold-to-reset 3-second button
-            val resetText = when {
-                isResetting && resetHoldSeconds > 0 -> if (isEnglish) "Hold (${resetHoldSeconds}s)..." else "Держи (${resetHoldSeconds}с)..."
-                else -> if (isEnglish) "Hold 3s to reset" else "Зажми 3с для сброса"
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isResetting) Color(0x22FF4D4F) else Color.Transparent)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isResetting = true
-                                resetHoldSeconds = 3
-                                var completed = false
-                                val job = coroutineScope.launch {
-                                    for (i in 3 downTo 1) {
-                                        resetHoldSeconds = i
-                                        delay(1000)
-                                    }
-                                    completed = true
-                                    wakeUpDone = false
-                                    washDone = false
-                                    waterDone = false
-                                    walkDone = false
-                                    prefs.edit().remove("wake_up").remove("wash").remove("water").remove("walk").apply()
-                                    isResetting = false
-                                    resetHoldSeconds = 0
-                                }
-                                tryAwaitRelease()
-                                job.cancel()
-                                isResetting = false
-                                resetHoldSeconds = 0
-                            }
-                        )
-                    }
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = resetText,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (isResetting) Color(0xFFD32F2F) else Color.Gray
-                )
-            }
-        }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 50.dp),
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Main title
+            // Main title matching Excalidraw marker handwriting
             Text(
-                text = if (isEnglish) "Morning Routine" else "План на утро",
-                fontSize = if (isEnglish) 36.sp else 40.sp,
-                fontWeight = FontWeight.ExtraBold,
-                fontFamily = FontFamily.SansSerif,
-                color = outlineDark,
-                modifier = Modifier.padding(bottom = 34.dp)
+                text = "Morning Routine",
+                fontSize = 44.sp,
+                fontFamily = kalamFamily,
+                fontWeight = FontWeight.Bold,
+                color = inkDark,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 36.dp)
             )
 
-            // Diagram box
-            Box(
+            // Exact mathematical layout for the diagram
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(460.dp)
+                    .height(440.dp)
             ) {
+                val totalWidth = maxWidth
+                val density = LocalDensity.current
+
+                // Card Dimensions
+                val card1Width = 140.dp
+                val card1Height = 72.dp
+
+                val card2Width = 140.dp
+                val card2Height = 74.dp
+
+                val card3Width = 125.dp
+                val card3Height = 74.dp
+
+                val card4Width = 148.dp
+                val card4Height = 76.dp
+
+                // Exact horizontal positions
+                val leftMargin = 18.dp
+                val card1X = leftMargin
+                val card2X = leftMargin
+                val card1CenterX = card1X + card1Width / 2
+                val card2CenterX = card2X + card2Width / 2 // Identical X center!
+
+                val rightMargin = 18.dp
+                val card3X = totalWidth - rightMargin - card3Width
+                val card3CenterX = card3X + card3Width / 2
+
+                // Card 4: PERFECTLY CENTERED between Card 2 and Card 3
+                val card4CenterX = (card2CenterX + card3CenterX) / 2
+                val card4X = card4CenterX - card4Width / 2
+
+                // Vertical positions
+                val card1Y = 0.dp
+                val card2Y = 140.dp
+                val card3Y = 100.dp // Slightly higher than Card 2, exactly like reference
+                val card4Y = 320.dp
+
+                // Precise Arrow anchors in Dp
+                // 1. Wake Up -> Wash Up (100% straight vertical)
+                val arrow1Start = Offset(
+                    with(density) { card1CenterX.toPx() },
+                    with(density) { (card1Y + card1Height).toPx() }
+                )
+                val arrow1End = Offset(
+                    with(density) { card2CenterX.toPx() },
+                    with(density) { card2Y.toPx() }
+                )
+
+                // 2. Wash Up -> Drink Water (Angled upwards)
+                val arrow2Start = Offset(
+                    with(density) { (card2X + card2Width).toPx() },
+                    with(density) { (card2Y + 28.dp).toPx() }
+                )
+                val arrow2End = Offset(
+                    with(density) { card3X.toPx() },
+                    with(density) { (card3Y + card3Height - 24.dp).toPx() }
+                )
+
+                // 3. Wash Up -> Step Outside (Left diagonal)
+                val arrow3Start = Offset(
+                    with(density) { (card2X + card2Width - 22.dp).toPx() },
+                    with(density) { (card2Y + card2Height).toPx() }
+                )
+                val arrow3End = Offset(
+                    with(density) { (card4CenterX - 32.dp).toPx() },
+                    with(density) { card4Y.toPx() }
+                )
+
+                // 4. Drink Water -> Step Outside (Right diagonal - 100% symmetric to Left diagonal)
+                val arrow4Start = Offset(
+                    with(density) { (card3X + 22.dp).toPx() },
+                    with(density) { (card3Y + card3Height).toPx() }
+                )
+                val arrow4End = Offset(
+                    with(density) { (card4CenterX + 32.dp).toPx() },
+                    with(density) { card4Y.toPx() }
+                )
+
+                // Canvas rendering Excalidraw-style sketchy arrows
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    // 1. Wake Up -> Wash Up
-                    if (wakeBottom != Offset.Zero && washTop != Offset.Zero) {
-                        val verticalX = wakeBottom.x
-                        drawDiagramArrow(
-                            start = Offset(verticalX, wakeBottom.y),
-                            end = Offset(verticalX, washTop.y),
-                            color = arrowColor
-                        )
-                    }
-
-                    // 2. Wash Up -> Drink Water
-                    if (washRight != Offset.Zero && waterLeft != Offset.Zero) {
-                        drawDiagramArrow(
-                            start = washRight,
-                            end = waterLeft,
-                            color = arrowColor
-                        )
-                    }
-
-                    // 3. Wash Up -> Step Outside
-                    if (washBottom != Offset.Zero && walkLeftTop != Offset.Zero) {
-                        drawDiagramArrow(
-                            start = washBottom,
-                            end = walkLeftTop,
-                            color = arrowColor
-                        )
-                    }
-
-                    // 4. Drink Water -> Step Outside
-                    if (waterBottom != Offset.Zero && walkRightTop != Offset.Zero) {
-                        drawDiagramArrow(
-                            start = waterBottom,
-                            end = walkRightTop,
-                            color = arrowColor
-                        )
-                    }
+                    drawExcalidrawArrow(start = arrow1Start, end = arrow1End, color = arrowColor)
+                    drawExcalidrawArrow(start = arrow2Start, end = arrow2End, color = arrowColor)
+                    drawExcalidrawArrow(start = arrow3Start, end = arrow3End, color = arrowColor)
+                    drawExcalidrawArrow(start = arrow4Start, end = arrow4End, color = arrowColor)
                 }
 
-                // 1. Wake Up
-                DiagramTaskCard(
-                    title = if (isEnglish) "Wake Up" else "Проснуться",
+                // "optional" hand-drawn label above Arrow 2
+                val optX = (card2X + card2Width + card3X) / 2 - 34.dp
+                val optY = (card2Y + card3Y) / 2 - 18.dp
+                Text(
+                    text = "optional",
+                    fontSize = 14.sp,
+                    fontFamily = kalamFamily,
+                    color = arrowColor,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .offset(x = optX, y = optY)
+                        .rotate(-15f)
+                )
+
+                // 1. Wake Up Card
+                ExcalidrawCard(
+                    title = "Wake Up",
                     isDone = wakeUpDone,
                     defaultColor = boxYellow,
                     doneColor = doneGreen,
-                    outlineColor = outlineDark,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 18.dp, top = 8.dp)
-                        .onGloballyPositioned { coords ->
-                            val pos = coords.positionInParent()
-                            val size = coords.size
-                            wakeBottom = Offset(pos.x + size.width / 2f, pos.y + size.height)
-                        },
-                    onClick = {
-                        if (!wakeUpDone) {
-                            wakeUpDone = true
-                            prefs.edit().putBoolean("wake_up", true).apply()
-                        }
+                    fontFamily = kalamFamily,
+                    inkColor = inkDark,
+                    width = card1Width,
+                    height = card1Height,
+                    modifier = Modifier.offset(x = card1X, y = card1Y),
+                    onCompleted = {
+                        wakeUpDone = true
+                        prefs.edit().putBoolean("wake_up", true).apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    },
+                    onReset = {
+                        wakeUpDone = false
+                        prefs.edit().remove("wake_up").apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     }
                 )
 
-                // 2. Wash Up
-                DiagramTaskCard(
-                    title = if (isEnglish) "Wash Up" else "Умыться",
+                // 2. Wash Up Card
+                ExcalidrawCard(
+                    title = "Wash Up",
                     isDone = washDone,
                     defaultColor = boxBlue,
                     doneColor = doneGreen,
-                    outlineColor = outlineDark,
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 18.dp, bottom = 40.dp)
-                        .onGloballyPositioned { coords ->
-                            val pos = coords.positionInParent()
-                            val size = coords.size
-                            washTop = Offset(pos.x + size.width / 2f, pos.y)
-                            washRight = Offset(pos.x + size.width, pos.y + size.height * 0.45f)
-                            washBottom = Offset(pos.x + size.width * 0.8f, pos.y + size.height)
-                        },
-                    onClick = {
-                        if (!washDone) {
-                            washDone = true
-                            prefs.edit().putBoolean("wash", true).apply()
-                        }
+                    fontFamily = kalamFamily,
+                    inkColor = inkDark,
+                    width = card2Width,
+                    height = card2Height,
+                    modifier = Modifier.offset(x = card2X, y = card2Y),
+                    onCompleted = {
+                        washDone = true
+                        prefs.edit().putBoolean("wash", true).apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    },
+                    onReset = {
+                        washDone = false
+                        prefs.edit().remove("wash").apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     }
                 )
 
-                // Optional text
-                Text(
-                    text = if (isEnglish) "optional" else "опционально",
-                    fontSize = 13.sp,
-                    color = arrowColor,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(x = 10.dp, y = (-72).dp)
-                        .rotate(-12f)
-                )
-
-                // 3. Drink Water
-                DiagramTaskCard(
-                    title = if (isEnglish) "Drink\nWater" else "Попить\nводички",
+                // 3. Drink Water Card
+                ExcalidrawCard(
+                    title = "Drink\nWater",
                     isDone = waterDone,
                     defaultColor = boxBlue,
                     doneColor = doneGreen,
-                    outlineColor = outlineDark,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 16.dp, bottom = 60.dp)
-                        .onGloballyPositioned { coords ->
-                            val pos = coords.positionInParent()
-                            val size = coords.size
-                            waterLeft = Offset(pos.x, pos.y + size.height * 0.5f)
-                            waterBottom = Offset(pos.x + size.width * 0.35f, pos.y + size.height)
-                        },
-                    onClick = {
-                        if (!waterDone) {
-                            waterDone = true
-                            prefs.edit().putBoolean("water", true).apply()
-                        }
+                    fontFamily = kalamFamily,
+                    inkColor = inkDark,
+                    width = card3Width,
+                    height = card3Height,
+                    modifier = Modifier.offset(x = card3X, y = card3Y),
+                    onCompleted = {
+                        waterDone = true
+                        prefs.edit().putBoolean("water", true).apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    },
+                    onReset = {
+                        waterDone = false
+                        prefs.edit().remove("water").apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     }
                 )
 
-                // 4. Step Outside (clickable and toggles to checkmark)
-                DiagramTaskCard(
-                    title = if (isEnglish) "Step\nOutside" else "Выйти\nна улицу",
+                // 4. Step Outside Card
+                ExcalidrawCard(
+                    title = "Step\nOutside",
                     isDone = walkDone,
                     defaultColor = boxGreen,
                     doneColor = doneGreen,
-                    outlineColor = outlineDark,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp)
-                        .onGloballyPositioned { coords ->
-                            val pos = coords.positionInParent()
-                            val size = coords.size
-                            walkLeftTop = Offset(pos.x + size.width * 0.35f, pos.y)
-                            walkRightTop = Offset(pos.x + size.width * 0.65f, pos.y)
-                        },
-                    onClick = {
-                        if (!walkDone) {
-                            walkDone = true
-                            prefs.edit().putBoolean("walk", true).apply()
-                        }
+                    fontFamily = kalamFamily,
+                    inkColor = inkDark,
+                    width = card4Width,
+                    height = card4Height,
+                    modifier = Modifier.offset(x = card4X, y = card4Y),
+                    onCompleted = {
+                        walkDone = true
+                        prefs.edit().putBoolean("walk", true).apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    },
+                    onReset = {
+                        walkDone = false
+                        prefs.edit().remove("walk").apply()
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     }
                 )
             }
         }
 
-        // Bottom hint
+        // Bottom hint matching hand-drawn minimalist aesthetic
         Text(
-            text = if (isEnglish) "Swipe up to unlock" else "Свайпните вверх для разблокировки",
-            fontSize = 13.sp,
-            color = Color.Gray,
+            text = "Swipe up to unlock",
+            fontSize = 15.sp,
+            fontFamily = kalamFamily,
+            color = Color(0xFF888279),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
                 .clickable { onDismiss() }
         )
     }
 }
 
 @Composable
-fun DiagramTaskCard(
+fun ExcalidrawCard(
     title: String,
     isDone: Boolean,
     defaultColor: Color,
     doneColor: Color,
-    outlineColor: Color,
+    fontFamily: FontFamily,
+    inkColor: Color,
+    width: Dp,
+    height: Dp,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onCompleted: () -> Unit,
+    onReset: () -> Unit
 ) {
+    var isPressing by remember { mutableStateOf(false) }
+
+    // Smooth hold-to-fill animation
+    val fillProgress by animateFloatAsState(
+        targetValue = if (isDone) 1f else if (isPressing) 1f else 0f,
+        animationSpec = if (isPressing && !isDone) {
+            tween(durationMillis = 650, easing = LinearEasing)
+        } else {
+            spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+        },
+        label = "fillProgress"
+    )
+
+    // Checkmark scale bounce animation
+    val checkmarkScale by animateFloatAsState(
+        targetValue = if (isDone) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
+        label = "checkmarkScale"
+    )
+
+    LaunchedEffect(fillProgress, isPressing) {
+        if (fillProgress >= 0.98f && isPressing && !isDone) {
+            isPressing = false
+            onCompleted()
+        }
+    }
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (isDone) doneColor else defaultColor)
-            .border(2.6.dp, outlineColor, RoundedCornerShape(20.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 24.dp, vertical = 15.dp),
+            .size(width = width, height = height)
+            .pointerInput(isDone) {
+                detectTapGestures(
+                    onPress = {
+                        if (!isDone) {
+                            isPressing = true
+                            tryAwaitRelease()
+                            isPressing = false
+                        }
+                    },
+                    onLongPress = {
+                        if (isDone) {
+                            onReset()
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
+        // Custom Canvas drawing organic hand-drawn card background and sketch border
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            // Base organic path
+            val cardPath = Path().apply {
+                val r = 18f
+                // Top edge
+                moveTo(r, 0f)
+                quadraticBezierTo(w * 0.5f, -1.5f, w - r, 0f)
+                quadraticBezierTo(w, 0f, w, r)
+                // Right edge
+                quadraticBezierTo(w + 1.2f, h * 0.5f, w, h - r)
+                quadraticBezierTo(w, h, w - r, h)
+                // Bottom edge
+                quadraticBezierTo(w * 0.5f, h + 1.5f, r, h)
+                quadraticBezierTo(0f, h, 0f, h - r)
+                // Left edge
+                quadraticBezierTo(-1.2f, h * 0.5f, 0f, r)
+                quadraticBezierTo(0f, 0f, r, 0f)
+                close()
+            }
+
+            // Fill default pastel color
+            drawPath(path = cardPath, color = defaultColor)
+
+            // Hold-to-fill animated green progress layer
+            if (fillProgress > 0f) {
+                drawPath(
+                    path = cardPath,
+                    color = doneColor.copy(alpha = if (isDone) 1f else fillProgress)
+                )
+            }
+
+            // Hand-drawn sketch border (Rough.js style double-curved ink stroke)
+            drawPath(
+                path = cardPath,
+                color = inkColor,
+                style = Stroke(
+                    width = 3.2f.dp.toPx(),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
+            )
+        }
+
+        // Card Text and Checkmark
         Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
                 text = title,
                 fontSize = 20.sp,
+                fontFamily = fontFamily,
                 fontWeight = FontWeight.Bold,
-                color = outlineColor,
+                color = inkColor,
                 textAlign = TextAlign.Center,
-                lineHeight = 23.sp
+                lineHeight = 22.sp
             )
-            if (isDone) {
-                Spacer(modifier = Modifier.width(8.dp))
+            if (checkmarkScale > 0.05f) {
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "✓",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    color = outlineColor
+                    fontSize = 24.sp,
+                    fontFamily = fontFamily,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = inkColor,
+                    modifier = Modifier.scale(checkmarkScale)
                 )
             }
         }
     }
 }
 
-fun DrawScope.drawDiagramArrow(
+/**
+ * Draws an authentic Excalidraw hand-drawn arrow with subtle organic curvature
+ * and classic hand-drawn barb strokes.
+ */
+fun DrawScope.drawExcalidrawArrow(
     start: Offset,
     end: Offset,
     color: Color,
-    strokeWidth: Float = 5.5f
+    strokeWidthDp: Float = 3.8f
 ) {
-    drawLine(
-        color = color,
-        start = start,
-        end = end,
-        strokeWidth = strokeWidth,
-        cap = StrokeCap.Round
+    val strokePx = strokeWidthDp.dp.toPx()
+
+    val dx = end.x - start.x
+    val dy = end.y - start.y
+    val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+    if (dist < 5f) return
+
+    // Offset end slightly so arrow head sits right outside target
+    val angle = atan2(dy.toDouble(), dx.toDouble())
+    val targetEnd = Offset(
+        (end.x - 4f * cos(angle)).toFloat(),
+        (end.y - 4f * sin(angle)).toFloat()
     )
 
-    val angle = atan2((end.y - start.y).toDouble(), (end.x - start.x).toDouble())
-    val headLength = 24f
-    val headAngle = 0.42
+    // Hand-drawn arrow shaft with slight organic curve
+    val shaftPath = Path().apply {
+        moveTo(start.x, start.y)
+        // Midpoint slight organic arch
+        val midX = (start.x + targetEnd.x) / 2f
+        val midY = (start.y + targetEnd.y) / 2f
+        val perpX = -sin(angle).toFloat() * 1.5f
+        val perpY = cos(angle).toFloat() * 1.5f
+        quadraticBezierTo(midX + perpX, midY + perpY, targetEnd.x, targetEnd.y)
+    }
+
+    drawPath(
+        path = shaftPath,
+        color = color,
+        style = Stroke(
+            width = strokePx,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+    )
+
+    // Hand-drawn arrowhead barbs
+    val headLength = 22f
+    val headAngle = 0.44 // ~25 degrees
 
     val p1 = Offset(
-        (end.x - headLength * cos(angle - headAngle)).toFloat(),
-        (end.y - headLength * sin(angle - headAngle)).toFloat()
+        (targetEnd.x - headLength * cos(angle - headAngle)).toFloat(),
+        (targetEnd.y - headLength * sin(angle - headAngle)).toFloat()
     )
     val p2 = Offset(
-        (end.x - headLength * cos(angle + headAngle)).toFloat(),
-        (end.y - headLength * sin(angle + headAngle)).toFloat()
+        (targetEnd.x - headLength * cos(angle + headAngle)).toFloat(),
+        (targetEnd.y - headLength * sin(angle + headAngle)).toFloat()
     )
 
     drawLine(
         color = color,
-        start = end,
+        start = targetEnd,
         end = p1,
-        strokeWidth = strokeWidth,
+        strokeWidth = strokePx,
         cap = StrokeCap.Round
     )
     drawLine(
         color = color,
-        start = end,
+        start = targetEnd,
         end = p2,
-        strokeWidth = strokeWidth,
+        strokeWidth = strokePx,
         cap = StrokeCap.Round
     )
 }

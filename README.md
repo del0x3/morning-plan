@@ -2,15 +2,18 @@
 
 An Android application built with Kotlin and Jetpack Compose that places an interactive morning routine diagram directly over the system lockscreen.
 
-The visual layout is inspired by hand-drawn sketches from Excalidraw, and the original concept board was generated using Gemini.
+The layout is inspired by hand-drawn sketches from Excalidraw, and the original concept board was generated using Gemini.
 
 ---
 
 ## Downloads
 
-Prebuilt APKs are automatically compiled and published through GitHub Actions.
+Official release builds are signed and published through GitHub Actions.
 
-You can download the latest installable file from the **[Releases](https://github.com/del0x3/morning-plan/releases)** tab.
+You can download the latest installable APK from the **[Releases](https://github.com/del0x3/morning-plan/releases)** tab.
+
+Direct link to the latest APK:  
+[app-release.apk (v1.1.0)](https://github.com/del0x3/morning-plan/releases/latest/download/app-release.apk)
 
 ---
 
@@ -21,21 +24,20 @@ You can download the latest installable file from the **[Releases](https://githu
 | ![Gemini Reference](assets/reference_gemini.jpg) | ![Fresh Lockscreen](assets/screenshot_fresh.png) | ![Checked Tasks](assets/screenshot_checked.png) |
 
 ### Demonstration Video
-A video recording from a physical Samsung Galaxy device is included in the repository:
+A video recording captured on a physical Samsung Galaxy device demonstrating the hold-to-fill interaction and swipe-to-unlock gesture:
 [Watch demo.mp4](assets/demo.mp4)
 
 ---
 
 ## How It Works
 
-1. **Background Service:** `LockscreenService` runs as a foreground service monitoring display power state (`ACTION_SCREEN_OFF` and `ACTION_SCREEN_ON`).
-2. **Lockscreen Overlay:** When the phone screen turns on, `LockscreenActivity` presents the routine diagram immediately on top of the keyguard using `showWhenLocked`, `turnScreenOn`, and full immersive flags that hide the system clock and status bars.
-3. **Task Completion:**
-   - Tapping an item marks it as completed: the card transitions to green and displays a checkmark.
-   - Once marked complete, tasks cannot be accidentally unchecked with a single tap.
-   - To reset all tasks for the next day, press and hold the reset control in the top-right corner for 3 seconds.
-4. **Unlocking:** Swiping up dismisses the activity and seamlessly prompts the standard Samsung One UI PIN or fingerprint scanner.
-5. **Localization:** Tap the language toggle in the top-left corner to switch between English and Russian.
+1. **Background Monitoring:** `LockscreenService` runs as a sticky foreground service monitoring device display power states (`ACTION_SCREEN_OFF` and `ACTION_SCREEN_ON`).
+2. **Lockscreen Overlay:** When the phone display turns on, `LockscreenActivity` presents the routine diagram immediately on top of the keyguard using `showWhenLocked`, `turnScreenOn`, and full immersive flags that hide the system clock and status bars.
+3. **Hold-to-Fill Confirmation:**
+   - To prevent accidental misclicks when waking up, each task requires holding the card for 650ms.
+   - An animated green progress fill sweeps across the card while held, accompanied by haptic feedback, before locking into a checkmark (`✓`).
+   - Once completed, tasks remain locked against single taps. To reset a completed task, long-press it.
+4. **Unlocking:** Swiping up dismisses the activity and seamlessly prompts the standard system PIN or biometric fingerprint prompt.
 
 ---
 
@@ -45,7 +47,8 @@ A video recording from a physical Samsung Galaxy device is included in the repos
 - Jetpack Compose (Material 3)
 - Android Gradle Plugin 8.7+
 - Android SDK 35 (Android 15 / 14 support)
-- Canvas-based custom arrow renderer
+- Kalam handwritten typography
+- Canvas-based custom arrow and sketchy card renderer
 - SharedPreferences for persistent daily progress
 
 ---
@@ -56,26 +59,26 @@ Prerequisites:
 - Android SDK (API 35, Build-tools 35.0.0)
 - JDK 17
 
-Build the debug APK:
+Build the release APK:
 ```bash
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
 Output path:
-`app/build/outputs/apk/debug/app-debug.apk`
+`app/build/outputs/apk/release/app-release.apk`
 
 Install directly via ADB:
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ---
 
 ## Setup on Samsung Devices (One UI)
 
-1. Launch the app once to start the service.
+1. Launch the app once to register and start the foreground service.
 2. Grant "Display over other apps" (Settings -> Apps -> Special app access -> Display over other apps -> Morning Routine).
-3. Set Battery usage to "Unrestricted" (Settings -> Apps -> Morning Routine -> Battery -> Unrestricted) so One UI does not put the background service to sleep.
+3. Set Battery usage to "Unrestricted" (Settings -> Apps -> Morning Routine -> Battery -> Unrestricted) so One UI does not pause the service in deep sleep.
 
 ---
 
@@ -83,4 +86,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 - Direct import of board layouts from Excalidraw JSON files and live URLs.
 - Dynamic node and arrow creation directly in the app.
-- Cross-platform support for tablets, desktop, and other mobile ecosystems.
+- Multi-platform expansion: release and native support for all devices, including tablets, desktops (macOS, Windows, Linux), and other mobile ecosystems.
